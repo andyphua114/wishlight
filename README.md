@@ -94,6 +94,8 @@ It uses:
 - `AnalyserNode`
 - `requestAnimationFrame`
 - RMS volume from time-domain audio samples
+- Adaptive room baseline checks for quiet mobile microphones
+- High-frequency breath/noise checks for browsers that reduce raw volume
 
 The app defaults to sensitivity `9`, which maps to roughly:
 
@@ -104,6 +106,10 @@ cooldownMs = 1500
 ```
 
 The microphone stream is stopped when the candle is blown out, the detector is disabled, or the component unmounts.
+
+### iOS Notes
+
+iOS may apply wind or noise suppression before the browser receives microphone data. That can make a pure airy breath appear quieter than a soft voiced sound. Wishlight requests reduced processing where browsers support it and also checks for relative breath-like changes, but a very suppressed mic signal may still need either higher sensitivity or a tiny soft `hoo` with the breath.
 
 ## Deploying on Vercel
 

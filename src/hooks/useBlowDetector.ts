@@ -21,6 +21,34 @@ type WebKitWindow = Window &
     webkitAudioContext?: typeof AudioContext;
   };
 
+const getAverageFrequencyEnergy = (
+  frequencyData: Uint8Array,
+  audioContext: AudioContext,
+  minFrequency: number,
+  maxFrequency: number,
+) => {
+  const nyquistFrequency = audioContext.sampleRate / 2;
+  const startBin = Math.max(
+    1,
+    Math.floor((minFrequency / nyquistFrequency) * frequencyData.length),
+  );
+  const endBin = Math.min(
+    frequencyData.length,
+    Math.ceil((maxFrequency / nyquistFrequency) * frequencyData.length),
+  );
+
+  if (startBin >= endBin) {
+    return 0;
+  }
+
+  let sum = 0;
+  for (let index = startBin; index < endBin; index += 1) {
+    sum += frequencyData[index] / 255;
+  }
+
+  return sum / (endBin - startBin);
+};
+
 export function useBlowDetector({
   enabled,
   threshold = 0.1,
@@ -68,6 +96,8 @@ export function useBlowDetector({
     let audioContext: AudioContext | null = null;
     let aboveThresholdSince = 0;
     let lastTriggerAt = 0;
+    let ambientRms = 0;
+    let ambientHighEnergy = 0;
 
     const stop = () => {
       if (animationFrame) {
@@ -102,17 +132,20 @@ export function useBlowDetector({
         if (audioContext.state === "suspended") {
           await audioContext.resume();
         }
-        const source = audioContext.createMediaStreamSource(stream);
-        const analyser = audioContext.createAnalyser();
-        analyser.fftSize = 1024;
+        const activeAudioContext = audioContext;
+        const source = activeAudioContext.createMediaStreamSource(stream);
+        const analyser = activeAudioContext.createAnalyser();
+        analyser.fftSize = 2048;
         analyser.smoothingTimeConstant = 0.15;
         source.connect(analyser);
 
         const samples = new Uint8Array(analyser.fftSize);
+        const frequencyData = new Uint8Array(analyser.frequencyBinCount);
         setStatus("listening");
 
         const poll = (now: number) => {
           analyser.getByteTimeDomainData(samples);
+          analyser.getByteFrequencyData(frequencyData);
 
           let sumSquares = 0;
           for (const sample of samples) {
@@ -121,13 +154,34 @@ export function useBlowDetector({
           }
 
           const rms = Math.sqrt(sumSquares / samples.length);
+          const highEnergy = getAverageFrequencyEnergy(
+            frequencyData,
+            activeAudioContext,
+            1200,
+            7600,
+          );
           const {
             threshold: currentThreshold,
             minDurationMs: currentMinDurationMs,
             cooldownMs: currentCooldownMs,
           } = settingsRef.current;
+          ambientRms ||= rms;
+          ambientHighEnergy ||= highEnergy;
 
-          if (rms > currentThreshold) {
+          const adaptiveRmsThreshold = Math.max(
+            currentThreshold * 0.45,
+            ambientRms * 2.15 + 0.002,
+          );
+          const adaptiveHighThreshold = Math.max(
+            0.006,
+            ambientHighEnergy * 1.85 + 0.002,
+          );
+          const volumeDetected =
+            rms > currentThreshold || rms > adaptiveRmsThreshold;
+          const breathNoiseDetected =
+            highEnergy > adaptiveHighThreshold && rms > currentThreshold * 0.3;
+
+          if (volumeDetected || breathNoiseDetected) {
             aboveThresholdSince ||= now;
 
             if (
@@ -140,6 +194,8 @@ export function useBlowDetector({
             }
           } else {
             aboveThresholdSince = 0;
+            ambientRms = ambientRms * 0.96 + rms * 0.04;
+            ambientHighEnergy = ambientHighEnergy * 0.96 + highEnergy * 0.04;
           }
 
           animationFrame = requestAnimationFrame(poll);
