@@ -85,7 +85,13 @@ export function useBlowDetector({
       setStatus("requesting");
 
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            autoGainControl: true,
+            echoCancellation: false,
+            noiseSuppression: false,
+          },
+        });
 
         if (!active) {
           stop();

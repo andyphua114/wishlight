@@ -95,11 +95,11 @@ It uses:
 - `requestAnimationFrame`
 - RMS volume from time-domain audio samples
 
-The app defaults to sensitivity `8`, which maps to roughly:
+The app defaults to sensitivity `9`, which maps to roughly:
 
 ```txt
-threshold = 0.08
-minDurationMs = 148
+threshold = 0.024
+minDurationMs = 104
 cooldownMs = 1500
 ```
 

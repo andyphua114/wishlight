@@ -31,11 +31,15 @@ const clampSensitivity = (value: number) =>
   Math.min(10, Math.max(1, Math.round(value)));
 
 const getSensitivityLabel = (sensitivity: number) => {
-  if (sensitivity >= 8) {
+  if (sensitivity >= 9) {
+    return "Phone distance";
+  }
+
+  if (sensitivity >= 7) {
     return "Extra gentle";
   }
 
-  if (sensitivity >= 5) {
+  if (sensitivity >= 4) {
     return "Balanced";
   }
 
@@ -49,14 +53,14 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [sensitivity, setSensitivity] = useState(() => {
     const savedSensitivity = window.localStorage.getItem(sensitivityStorageKey);
-    return savedSensitivity ? clampSensitivity(Number(savedSensitivity)) : 8;
+    return savedSensitivity ? clampSensitivity(Number(savedSensitivity)) : 9;
   });
   const settingsRef = useRef<HTMLDivElement | null>(null);
 
   const blowSettings = useMemo(
     () => ({
-      threshold: Math.max(0.05, 0.2 - sensitivity * 0.015),
-      minDurationMs: Math.max(110, 260 - sensitivity * 14),
+      threshold: 0.012 + (10 - sensitivity) * 0.012,
+      minDurationMs: 80 + (10 - sensitivity) * 24,
     }),
     [sensitivity],
   );
