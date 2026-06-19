@@ -30,10 +30,23 @@ export function useBlowDetector({
 }: BlowDetectorOptions) {
   const [status, setStatus] = useState<BlowDetectorStatus>("idle");
   const onBlowRef = useRef(onBlow);
+  const settingsRef = useRef({
+    threshold,
+    minDurationMs,
+    cooldownMs,
+  });
 
   useEffect(() => {
     onBlowRef.current = onBlow;
   }, [onBlow]);
+
+  useEffect(() => {
+    settingsRef.current = {
+      threshold,
+      minDurationMs,
+      cooldownMs,
+    };
+  }, [cooldownMs, minDurationMs, threshold]);
 
   useEffect(() => {
     if (!enabled) {
@@ -102,13 +115,18 @@ export function useBlowDetector({
           }
 
           const rms = Math.sqrt(sumSquares / samples.length);
+          const {
+            threshold: currentThreshold,
+            minDurationMs: currentMinDurationMs,
+            cooldownMs: currentCooldownMs,
+          } = settingsRef.current;
 
-          if (rms > threshold) {
+          if (rms > currentThreshold) {
             aboveThresholdSince ||= now;
 
             if (
-              now - aboveThresholdSince >= minDurationMs &&
-              now - lastTriggerAt >= cooldownMs
+              now - aboveThresholdSince >= currentMinDurationMs &&
+              now - lastTriggerAt >= currentCooldownMs
             ) {
               lastTriggerAt = now;
               aboveThresholdSince = 0;
@@ -142,7 +160,7 @@ export function useBlowDetector({
       active = false;
       stop();
     };
-  }, [cooldownMs, enabled, minDurationMs, threshold]);
+  }, [enabled]);
 
   return {
     status,

@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { Candle } from "./components/Candle";
 import { Confetti } from "./components/Confetti";
 import { PermissionMessage } from "./components/PermissionMessage";
@@ -18,11 +25,41 @@ type AudioWindow = Window &
   };
 
 const blowOutDelayMs = 520;
+const sensitivityStorageKey = "wishlight-sensitivity";
+
+const clampSensitivity = (value: number) =>
+  Math.min(10, Math.max(1, Math.round(value)));
+
+const getSensitivityLabel = (sensitivity: number) => {
+  if (sensitivity >= 8) {
+    return "Extra gentle";
+  }
+
+  if (sensitivity >= 5) {
+    return "Balanced";
+  }
+
+  return "Steady";
+};
 
 function App() {
   const [candleState, setCandleState] = useState<CandleState>("idle");
   const [isBlowingOut, setIsBlowingOut] = useState(false);
   const [hasStartedMic, setHasStartedMic] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [sensitivity, setSensitivity] = useState(() => {
+    const savedSensitivity = window.localStorage.getItem(sensitivityStorageKey);
+    return savedSensitivity ? clampSensitivity(Number(savedSensitivity)) : 8;
+  });
+  const settingsRef = useRef<HTMLDivElement | null>(null);
+
+  const blowSettings = useMemo(
+    () => ({
+      threshold: Math.max(0.05, 0.2 - sensitivity * 0.015),
+      minDurationMs: Math.max(110, 260 - sensitivity * 14),
+    }),
+    [sensitivity],
+  );
 
   useEffect(() => {
     const supportsAudio =
@@ -33,6 +70,39 @@ function App() {
       setCandleState("unsupported");
     }
   }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(sensitivityStorageKey, String(sensitivity));
+  }, [sensitivity]);
+
+  useEffect(() => {
+    if (!isSettingsOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        settingsRef.current &&
+        !settingsRef.current.contains(event.target as Node)
+      ) {
+        setIsSettingsOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsSettingsOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isSettingsOpen]);
 
   const extinguishCandle = useCallback(() => {
     setHasStartedMic(false);
@@ -46,8 +116,8 @@ function App() {
 
   const { status: blowDetectorStatus } = useBlowDetector({
     enabled: hasStartedMic && candleState !== "blown-out",
-    threshold: 0.1,
-    minDurationMs: 160,
+    threshold: blowSettings.threshold,
+    minDurationMs: blowSettings.minDurationMs,
     onBlow: extinguishCandle,
   });
 
@@ -109,6 +179,10 @@ function App() {
     setCandleState("requesting-mic");
   };
 
+  const handleSensitivityChange = (event: FormEvent<HTMLInputElement>) => {
+    setSensitivity(clampSensitivity(Number(event.currentTarget.value)));
+  };
+
   const fallbackEnabled =
     candleState === "mic-denied" ||
     candleState === "unsupported" ||
@@ -122,6 +196,54 @@ function App() {
       {candleState === "blown-out" && <Confetti />}
 
       <section className="wish-card" aria-live="polite">
+        <div className="settings-menu" ref={settingsRef}>
+          <button
+            className="settings-toggle"
+            type="button"
+            aria-label={
+              isSettingsOpen ? "Close wish settings" : "Open wish settings"
+            }
+            aria-expanded={isSettingsOpen}
+            aria-controls="wish-settings-panel"
+            onClick={() => setIsSettingsOpen((isOpen) => !isOpen)}
+          >
+            <span className="settings-toggle__spark settings-toggle__spark--one" />
+            <span className="settings-toggle__spark settings-toggle__spark--two" />
+            <span className="settings-toggle__spark settings-toggle__spark--three" />
+          </button>
+
+          {isSettingsOpen && (
+            <div
+              className="settings-panel"
+              id="wish-settings-panel"
+              role="dialog"
+              aria-label="Wish settings"
+            >
+              <label className="sensitivity-control" htmlFor="sensitivity">
+                <span className="settings-title">Wish sensitivity</span>
+                <span className="settings-value">
+                  {getSensitivityLabel(sensitivity)} - {sensitivity}/10
+                </span>
+              </label>
+              <input
+                id="sensitivity"
+                className="sensitivity-slider"
+                type="range"
+                min="1"
+                max="10"
+                step="1"
+                value={sensitivity}
+                onChange={handleSensitivityChange}
+                onInput={handleSensitivityChange}
+              />
+              <div className="sensitivity-scale" aria-hidden="true">
+                <span>Less</span>
+                <span>More</span>
+              </div>
+            </div>
+          )}
+        </div>
+
         <p className="eyebrow">Birthday wishlight</p>
         <h1>{candleState === "blown-out" ? "Wish made ✨" : "Make a wish"}</h1>
 

@@ -7,6 +7,7 @@ A cute birthday candle web app. Open it on a phone, light the candle, make a wis
 - Animated birthday candle with flickering flame, glow, smoke, and confetti
 - Mobile-first React UI
 - Web Audio API blow detection using microphone RMS volume
+- Cute settings menu for adjusting microphone sensitivity per device
 - Tap fallback for denied or unsupported microphone access
 - Accessible labels, reduced-motion support, and touch-friendly controls
 - Static frontend only: no backend, database, or accounts
@@ -71,6 +72,17 @@ npm run preview
 
 If the microphone is denied or unsupported, the app shows a message and lets the user tap the candle or button to complete the wish.
 
+## Sensitivity Settings
+
+Phone microphones and browser audio processing can vary a lot, so Wishlight includes a small sparkle settings button near the top-right of the candle screen.
+
+Open it to adjust `Wish sensitivity` from `1` to `10`:
+
+- Lower values require a stronger, steadier breath.
+- Higher values make the candle easier to extinguish.
+- The current setting is saved in `localStorage` on the device.
+- Sensitivity updates live while the microphone is listening.
+
 ## Blow Detection
 
 The reusable hook lives at `src/hooks/useBlowDetector.ts`.
@@ -83,11 +95,11 @@ It uses:
 - `requestAnimationFrame`
 - RMS volume from time-domain audio samples
 
-Current defaults:
+The app defaults to sensitivity `8`, which maps to roughly:
 
-```ts
-threshold = 0.1
-minDurationMs = 160
+```txt
+threshold = 0.08
+minDurationMs = 148
 cooldownMs = 1500
 ```
 
